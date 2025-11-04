@@ -463,7 +463,7 @@
          */
         async function createPlaylist(genre) {
             const body = {
-                name: `🎶 ${genre} (Sorted by Genre Sorter)`,
+                name: `{genre}`,
                 description: `Automatically created playlist for the genre: ${genre}`,
                 public: true, // Set to false if you want private playlists
             };
