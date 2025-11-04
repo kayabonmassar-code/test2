@@ -618,7 +618,7 @@
                         // B. Add Tracks to Playlist
                         await addTracksToPlaylist(newPlaylist.id, trackUris);
                         
-                        playlistMap[newPlaylistName] = {
+                        playlistMap[newPlaylistName] = `[${category.toUpperCase()}] ${genreName}`;
                             url: newPlaylist.url,
                             trackUris: trackUris
                         };
