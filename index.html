@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -54,6 +52,14 @@
             background-color: #1DB954;
             transition: width 0.5s ease;
         }
+        select, input[type="text"] {
+            background-color: #334155;
+            border: 1px solid #475569;
+            color: #e5e7eb;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -65,13 +71,13 @@
             </svg>
             Genre Sorter
         </h1>
-        <p class="text-center text-slate-400 mb-8">Automatically organize your Liked Songs into genre-specific playlists.</p>
+        <p class="text-center text-slate-400 mb-8">Automatically organize your music into broad, folder-friendly playlists.</p>
 
         <!-- Dynamic Content Area -->
         <div id="content">
             <div id="initialView" class="text-center">
                 <p class="text-slate-300 mb-6">
-                    This tool requires access to your Spotify profile, liked songs, and permission to create new playlists.
+                    This tool requires access to your Spotify profile and permission to create new playlists.
                 </p>
                 <button id="loginButton" class="w-full bg-spotifyGreen hover:bg-green-600 text-spotifyDark font-bold py-3 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105">
                     Log in with Spotify
@@ -87,6 +93,34 @@
                 <textarea id="authLink" rows="3" readonly class="w-full p-2 text-sm bg-slate-700 text-slate-200 rounded-md border border-slate-600 cursor-text resize-none"></textarea>
                 <button onclick="copyToClipboard()" class="mt-3 w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg">
                     Copy Link
+                </button>
+            </div>
+            
+            <!-- Sorting Options Area -->
+            <div id="optionsArea" class="mt-4 p-4 bg-slate-800 rounded-lg hidden">
+                <h2 class="text-xl font-semibold mb-4 text-spotifyGreen">1. Select Input Source</h2>
+                
+                <div class="space-y-4">
+                    <!-- Source Selection Dropdown -->
+                    <div>
+                        <label for="sourceSelect" class="block text-sm font-medium text-slate-300 mb-1">Source Type:</label>
+                        <select id="sourceSelect" onchange="togglePlaylistInput()">
+                            <option value="liked_songs">Liked Songs</option>
+                            <option value="playlist">Specific Playlist</option>
+                        </select>
+                    </div>
+
+                    <!-- Playlist Input Field (Initially Hidden) -->
+                    <div id="playlistInputContainer" class="hidden">
+                        <label for="playlistInput" class="block text-sm font-medium text-slate-300 mb-1">Playlist URL or ID:</label>
+                        <input type="text" id="playlistInput" placeholder="Paste Spotify URL or ID (e.g., 37i9dQZF1DXcBWIGoYBM5M)">
+                        <p class="text-xs text-slate-400 mt-1">Example: A link like https://open.spotify.com/playlist/ID</p>
+                    </div>
+                </div>
+
+                <h2 class="text-xl font-semibold mt-6 mb-4 text-spotifyGreen">2. Start Sorting</h2>
+                <button id="sortButton" onclick="startSortingProcess()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg shadow-lg">
+                    Start Genre Sorting
                 </button>
             </div>
         </div>
@@ -111,38 +145,76 @@
         // NOTE: The Client ID is provided for the functionality but would typically be hidden in a real application.
         const CLIENT_ID = 'fbc4e51a5ad640379aacf6bb8e7a57e2'; 
         const REDIRECT_URI = window.location.href.split('?')[0]; 
-        const SCOPES = 'user-library-read playlist-modify-public playlist-modify-private user-read-private';
+        // NEW SCOPES: Added playlist-read-private/collaborative for reading tracks from custom playlists
+        const SCOPES = 'user-library-read playlist-modify-public playlist-modify-private user-read-private playlist-read-private playlist-read-collaborative';
         const AUTH_URL = 'https://accounts.spotify.com/authorize';
         const TOKEN_URL = 'https://accounts.spotify.com/api/token';
         const API_BASE = 'https://api.spotify.com/v1';
 
-        // --- NEW: GENRE CATEGORY MAPPING ---
-        // This maps a broad range of Spotify's granular genres to your desired category folders.
+        // --- NEW: GENRE CATEGORY MAPPING (Wider Categories) ---
+        // Significantly expanded and consolidated to ensure minimal 'unsorted' tracks.
         const GENRE_CATEGORY_MAP = {
-            'Pop': ['pop', 'indie pop', 'dance pop', 'electropop', 'k-pop', 'j-pop', 'alt z', 'bedroom pop', 'boy band', 'girl group', 'hyperpop', 'bubblegum pop', 'pc music'],
-            'Electronic': ['electronic', 'edm', 'house', 'techno', 'trance', 'dubstep', 'ambient', 'downtempo', 'glitchcore', 'wave', 'vaporwave', 'lo-fi house', 'drum and bass', 'future bass'],
-            'Experimental': ['experimental', 'noise', 'abstract', 'drone', 'sound art', 'post-punk', 'avant-garde', 'glitch', 'free jazz', 'industrial', 'minimalism'],
-            'Retro': ['80s pop', '90s pop', 'classic rock', 'disco', 'funk', 'soul', 'synthwave', 'new wave', 'new romantic', 'yacht rock', 'motown', 'classic soul', 'classic funk'],
-            'Upbeat': ['dance', 'workout', 'shuffle', 'party', 'tropical house', 'uplifting trance', 'eurodance', 'pop punk', 'ska', 'merengue', 'salsa', 'cumbia'],
-            // Hyperpop genres are included in Pop for consolidation, but we can separate them if a distinct category is needed
-            'Hyperpop': ['hyperpop', 'bubblegum pop', 'pc music', 'drain', 'digicore'],
-            'Unsorted': ['unsorted'] // Default fallback category
+            'Pop/R&B': [
+                'pop', 'indie pop', 'dance pop', 'electropop', 'k-pop', 'j-pop', 'alt z', 'bedroom pop', 'boy band', 'girl group', 
+                'bubblegum pop', 'pc music', 'trap', 'rap', 'r&b', 'hip hop', 'folk pop', 'soul', 'funk',
+                'vocal jazz', 'singer-songwriter', 'country pop', 'alternative r&b', 'neo soul', 'chill pop', 
+                'acoustic pop', 'mellow gold', 'indie soul', 'lo-fi beats', 'gospel' 
+            ],
+            'Electronic/Dance': [
+                'electronic', 'edm', 'house', 'techno', 'trance', 'dubstep', 'ambient', 'downtempo', 'glitchcore', 'wave', 'vaporwave', 
+                'lo-fi house', 'drum and bass', 'future bass', 'bass music', 'minimal techno', 'progressive house', 'deep house', 
+                'chillout', 'trip hop', 'idm', 'electro', 'breakbeat', 'chillwave', 'synth pop', 'dance', 'workout', 'shuffle', 'party', 
+                'tropical house', 'uplifting trance', 'eurodance'
+            ],
+            'Rock/Metal': [
+                'modern rock', 'indie rock', 'hard rock', 'classic rock', 'metal', 'heavy metal', 'nu metal', 'symphonic metal', 'power metal', 'grunge', 
+                'punk', 'post-punk', 'goth rock', 'shoegaze', 'math rock', 'doom metal', 'black metal', 'death metal', 
+                'art rock', 'progressive rock', 'alternative rock', 'glam metal', 'pop punk', 'ska', 'garage rock'
+            ],
+            'Experimental/Abstract': [
+                'experimental', 'noise', 'abstract', 'drone', 'sound art', 'avant-garde', 'glitch', 'free jazz', 
+                'industrial', 'minimalism', 'field recording', 'microtonal', 'dark ambient', 'modern classical', 'soundtrack',
+                'ambient black metal', 'drone metal'
+            ],
+            'Retro/Decades': [ 
+                '80s pop', '90s pop', 'disco', 'synthwave', 'new wave', 'new romantic', 
+                'yacht rock', 'motown', 'classic soul', 'classic funk', 'classic pop', 'vintage', 'old school', 'rockabilly', 
+                'soft rock', 'rhythm and blues'
+            ],
+            'World/Latin': [ 
+                'afrobeat', 'latin', 'cumbia', 'salsa', 'merengue', 'reggae', 'brazilian pop', 'tango', 'world fusion', 
+                'kizomba', 'bachata', 'afrobeats', 'flamenco', 'j-rock', 'turkish pop', 'indian pop', 'bollywood', 'indie folk', 'bluegrass'
+            ],
+            'Hyperpop': [ // Kept separate as it's a niche, easily defined modern genre
+                'hyperpop', 'digicore', 'pc music', 'bubblegum pop', 'glitchcore', 'drain'
+            ],
         };
 
         // --- GLOBAL STATE ---
         let accessToken = '';
         let userId = '';
-        const MAX_TRACKS_TO_PROCESS = 2000; 
+        // Increased limit for better sorting coverage
+        const MAX_TRACKS_TO_PROCESS = 3000; 
         const MAX_ARTISTS_PER_BATCH = 50; 
         const MAX_TRACKS_PER_PLAYLIST_ADD = 100;
 
         // --- UTILITY FUNCTIONS ---
 
-        /**
-         * Converts a string to a safe base64 URL-safe format.
-         * @param {string} str The string to encode.
-         * @returns {string} The base64 URL-safe string.
-         */
+        /** Extracts the ID from a Spotify URL or returns the ID if already provided. */
+        function extractIdFromUrl(input) {
+            if (!input) return null;
+            const match = input.match(/(?:spotify\.com\/(?:user\/\w+\/)?playlist\/|:playlist:)([a-zA-Z0-9]+)/);
+            return match ? match[1] : input.trim();
+        }
+
+        /** Toggle visibility of the playlist input field. */
+        function togglePlaylistInput() {
+            const source = document.getElementById('sourceSelect').value;
+            document.getElementById('playlistInputContainer').classList.toggle('hidden', source !== 'playlist');
+        }
+        window.togglePlaylistInput = togglePlaylistInput; // Expose to global scope for onchange
+
+        /** Converts a string to a safe base64 URL-safe format. */
         function base64UrlEncode(str) {
             return btoa(String.fromCharCode.apply(null, new Uint8Array(str)))
                 .replace(/\+/g, '-')
@@ -150,11 +222,7 @@
                 .replace(/=/g, '');
         }
 
-        /**
-         * Generates a random alphanumeric string for PKCE.
-         * @param {number} length Length of the string.
-         * @returns {string} Random string.
-         */
+        /** Generates a random alphanumeric string for PKCE. */
         function generateRandomString(length) {
             let text = '';
             const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -164,11 +232,7 @@
             return text;
         }
 
-        /**
-         * Generates a code challenge from a code verifier using SHA256.
-         * @param {string} v The code verifier.
-         * @returns {Promise<string>} The code challenge.
-         */
+        /** Generates a code challenge from a code verifier using SHA256. */
         async function sha256(v) {
             const encoder = new TextEncoder();
             const data = encoder.encode(v);
@@ -176,13 +240,7 @@
             return new Uint8Array(hash);
         }
 
-        /**
-         * Fetches data from Spotify API with built-in access token handling.
-         * @param {string} url The full API URL.
-         * @param {string} method HTTP method.
-         * @param {object} body Request body (for POST/PUT).
-         * @returns {Promise<object>} JSON response object.
-         */
+        /** Fetches data from Spotify API with built-in access token handling. */
         async function fetchSpotify(url, method = 'GET', body = null) {
             const headers = {
                 'Authorization': `Bearer ${accessToken}`,
@@ -205,7 +263,6 @@
             }
 
             if (response.ok) {
-                // Check if content type is JSON before parsing
                 const contentType = response.headers.get("content-type");
                 if (contentType && contentType.indexOf("application/json") !== -1) {
                     return response.json();
@@ -222,7 +279,7 @@
                          errorDetails += ` - ${errorJson.error.message}`;
                     }
                 } catch (e) {
-                    // Ignore JSON parsing error if response body is empty or not JSON
+                    // Ignore JSON parsing error
                 }
                 updateStatus(`Spotify API Error: ${errorDetails}`, 'text-red-400');
                 throw new Error(`Spotify API failed: ${errorDetails}`);
@@ -231,8 +288,7 @@
 
         /**
          * Maps a Spotify genre to one of the defined folder categories.
-         * @param {string} spotifyGenre A genre string from Spotify.
-         * @returns {string} The folder category name (e.g., 'Pop', 'Electronic').
+         * Returns null if no explicit match is found.
          */
         function mapGenreToCategory(spotifyGenre) {
             const lowerGenre = spotifyGenre.toLowerCase();
@@ -241,28 +297,40 @@
                 if (GENRE_CATEGORY_MAP[category].includes(lowerGenre)) {
                     return category;
                 }
-                // Also check if the Spotify genre name contains the category name (e.g., 'trap' contains 'pop')
-                // This is a more aggressive matching, but helps catch edge cases.
-                if (lowerGenre.includes(category.toLowerCase())) {
-                     // Check for 'hyperpop' explicitly to ensure it doesn't get caught by 'pop'
-                     if (category === 'Pop' && lowerGenre.includes('hyperpop')) {
-                         return 'Hyperpop';
-                     }
-                     return category;
+            }
+            return null; // Return null if no explicit match
+        }
+
+        /**
+         * Tries to find the closest category based on genre keywords if no explicit match is found.
+         */
+        function findClosestCategory(genres) {
+            const genreKeywords = {
+                'Rock/Metal': ['rock', 'metal', 'punk', 'grunge', 'shoegaze', 'glam'],
+                'Electronic/Dance': ['dance', 'house', 'techno', 'trance', 'edm', 'dubstep', 'bass', 'electro'],
+                'World/Latin': ['latin', 'world', 'salsa', 'reggae', 'afro', 'cumbia', 'brazilian', 'tango', 'flamenco'],
+                'Retro/Decades': ['80s', '90s', 'classic', 'vintage', 'disco', 'motown', 'soft rock'],
+                'Experimental/Abstract': ['experimental', 'noise', 'drone', 'ambient', 'abstract', 'industrial', 'avant-garde', 'glitch'],
+                'Hyperpop': ['hyperpop', 'digicore', 'glitchcore'],
+                'Pop/R&B': ['pop', 'r&b', 'soul', 'hip hop', 'funk', 'rap', 'singer-songwriter', 'acoustic', 'chill', 'lo-fi'],
+            };
+
+            for (const genre of genres) {
+                const lowerGenre = genre.toLowerCase();
+                for (const category in genreKeywords) {
+                    if (genreKeywords[category].some(keyword => lowerGenre.includes(keyword))) {
+                        return category;
+                    }
                 }
             }
-            return 'Unsorted';
+
+            // Final safety net if nothing matches - defaults to the largest category
+            return 'Pop/R&B'; 
         }
 
         // --- UI & STATUS HANDLING ---
 
-        /**
-         * Updates the main status message and progress bar.
-         * @param {string} message Main status message.
-         * @param {string} color Tailwind color class (e.g., 'text-yellow-400').
-         * @param {number} percentage Progress bar value (0-100).
-         * @param {string} subStatus Secondary status message.
-         */
+        /** Updates the main status message and progress bar. */
         function updateStatus(message, color = 'text-white', percentage = 0, subStatus = '') {
             const statusMessage = document.getElementById('statusMessage');
             const subStatusEl = document.getElementById('subStatus');
@@ -271,7 +339,7 @@
             statusMessage.textContent = message;
             statusMessage.style.color = color;
 
-            if (percentage > 0) {
+            if (percentage >= 0) {
                 document.getElementById('statusArea').classList.remove('hidden');
                 progressBarFill.style.width = `${Math.min(100, percentage)}%`;
                 subStatusEl.textContent = subStatus;
@@ -282,36 +350,28 @@
             }
         }
 
-        /**
-         * Copies the generated link to the clipboard and shows a confirmation message.
-         */
+        /** Copies the generated link to the clipboard. */
         function copyToClipboard() {
             const linkTextarea = document.getElementById('authLink');
             linkTextarea.select();
             
             try {
-                // Use execCommand for better compatibility in sandboxed environments
                 document.execCommand('copy');
-                // Show temporary success message
                 const copyButton = document.querySelector('#authLinkContainer button');
                 const originalText = copyButton.textContent;
-                copyButton.textContent = "Copied to Clipboard! (Paste in New Tab)";
+                copyButton.textContent = "Copied! (Paste in New Tab)";
                 setTimeout(() => {
                     copyButton.textContent = originalText;
                 }, 3000);
             } catch (err) {
                 console.error('Could not copy text: ', err);
-                // Fallback for environments that block execCommand
                 const copyButton = document.querySelector('#authLinkContainer button');
                 copyButton.textContent = "Copy Failed - Select Manually!";
             }
         }
         window.copyToClipboard = copyToClipboard; // Expose to global scope for onclick
 
-        /**
-         * Displays the final list of created playlists.
-         * @param {object} playlists The playlist object map.
-         */
+        /** Displays the final list of created playlists. */
         function displayResults(playlists) {
             const resultsDiv = document.getElementById('results');
             const playlistList = document.getElementById('playlistList');
@@ -319,22 +379,22 @@
             playlistList.innerHTML = '';
 
             for (const [playlistName, playlist] of Object.entries(playlists)) {
-                const li = document.createElement('li');
-                const link = document.createElement('a');
-                link.href = playlist.url;
-                link.target = '_blank';
-                link.classList.add('text-indigo-300', 'hover:text-indigo-400', 'hover:underline', 'font-medium');
-                link.textContent = `▶️ ${playlistName} (${playlist.trackUris.length} tracks)`;
-                li.appendChild(link);
-                playlistList.appendChild(li);
+                if (playlist.trackUris.length > 0) {
+                    const li = document.createElement('li');
+                    const link = document.createElement('a');
+                    link.href = playlist.url;
+                    link.target = '_blank';
+                    link.classList.add('text-indigo-300', 'hover:text-indigo-400', 'hover:underline', 'font-medium');
+                    link.textContent = `▶️ ${playlistName} (${playlist.trackUris.length} tracks)`;
+                    li.appendChild(link);
+                    playlistList.appendChild(li);
+                }
             }
         }
 
         // --- AUTHENTICATION FLOW (PKCE) ---
 
-        /**
-         * Generates and displays the Spotify login link for manual copy/paste.
-         */
+        /** Generates and displays the Spotify login link for manual copy/paste. */
         async function redirectToSpotifyAuth() {
             if (!REDIRECT_URI) {
                 updateStatus("🚨 Setup Error: Could not determine the REDIRECT_URI.", 'text-red-400');
@@ -345,7 +405,6 @@
             const hashed = await sha256(codeVerifier);
             const codeChallenge = base64UrlEncode(hashed);
 
-            // Store verifier for later use
             localStorage.setItem('spotify_code_verifier', codeVerifier);
 
             const params = new URLSearchParams({
@@ -359,23 +418,19 @@
 
             const redirectUrl = `${AUTH_URL}?${params.toString()}`;
             
-            // --- FIX: Display link instead of redirecting/opening new tab ---
             document.getElementById('initialView').classList.add('hidden');
             document.getElementById('authLinkContainer').classList.remove('hidden');
             document.getElementById('authLink').value = redirectUrl;
         }
 
-        /**
-         * Exchanges the authorization code for an access token.
-         * @param {string} code The authorization code from the URL.
-         */
+        /** Exchanges the authorization code for an access token. */
         async function exchangeCodeForToken(code) {
             const codeVerifier = localStorage.getItem('spotify_code_verifier');
             if (!codeVerifier) {
                 updateStatus("Authentication Failed: Code verifier missing. Try logging in again.", 'text-red-400');
                 return;
             }
-            localStorage.removeItem('spotify_code_verifier'); // Clean up verifier
+            localStorage.removeItem('spotify_code_verifier');
 
             const params = new URLSearchParams({
                 client_id: CLIENT_ID,
@@ -398,8 +453,9 @@
 
                 if (response.ok) {
                     accessToken = data.access_token;
-                    // Start the main process once authenticated
-                    startSortingProcess();
+                    // Show the options area now
+                    document.getElementById('optionsArea').classList.remove('hidden');
+                    updateStatus("Authentication successful! Ready to sort.", 'text-spotifyGreen', 10);
                 } else {
                     updateStatus(`Authentication Error: ${data.error_description || data.error}`, 'text-red-400');
                 }
@@ -407,26 +463,21 @@
                 updateStatus("Authentication Network Error. Check connection.", 'text-red-400');
             }
         }
+        
+        // --- CORE FETCH LOGIC ---
 
-        // --- CORE APPLICATION LOGIC ---
-
-        /**
-         * Gets the current user's ID.
-         */
+        /** Gets the current user's ID. */
         async function getCurrentUser() {
             updateStatus("Fetching user profile...", 'text-white', 10);
             const user = await fetchSpotify(`${API_BASE}/me`);
             userId = user.id;
         }
 
-        /**
-         * Fetches all liked tracks for the user.
-         * @returns {Promise<Array>} Array of track objects.
-         */
+        /** Fetches all liked tracks for the user. */
         async function fetchAllLikedTracks() {
             let tracks = [];
             let url = `${API_BASE}/me/tracks?limit=50`;
-            let total = 1; // Assume at least 1 to enter loop
+            let total = 1; 
             let offset = 0;
 
             while (offset < total && offset < MAX_TRACKS_TO_PROCESS) {
@@ -435,7 +486,6 @@
                 const response = await fetchSpotify(url);
                 total = response.total;
                 
-                // Extract track URIs and main artist IDs
                 response.items.forEach(item => {
                     if (item.track && item.track.uri && item.track.artists.length > 0) {
                         tracks.push({
@@ -458,12 +508,46 @@
             updateStatus(`Fetched all tracks. Total: ${tracks.length}.`, 'text-white', 30);
             return tracks;
         }
+        
+        /** NEW: Fetches all tracks from a specific playlist ID. */
+        async function fetchPlaylistTracks(playlistId) {
+            let tracks = [];
+            let url = `${API_BASE}/playlists/${playlistId}/tracks?limit=50&fields=total,next,items(track(id,uri,name,artists(id)))`;
+            let total = 1; 
+            let offset = 0;
 
-        /**
-         * Fetches genres for a list of artist IDs.
-         * @param {Array<string>} artistIds Array of unique artist IDs.
-         * @returns {Promise<object>} Map of artistId to array of genres.
-         */
+            while (offset < total && offset < MAX_TRACKS_TO_PROCESS) {
+                updateStatus("Fetching playlist tracks...", 'text-white', 15 + (offset / Math.min(total, MAX_TRACKS_TO_PROCESS)) * 15, `Fetched ${offset} of ${total} tracks...`);
+
+                const response = await fetchSpotify(url);
+                total = response.total;
+                
+                response.items.forEach(item => {
+                    // Note: Playlist tracks API returns { track: {...} } structure
+                    if (item.track && item.track.id && item.track.artists.length > 0) {
+                        tracks.push({
+                            id: item.track.id,
+                            uri: item.track.uri,
+                            name: item.track.name,
+                            artistId: item.track.artists[0].id
+                        });
+                    }
+                });
+
+                offset += response.items.length;
+                url = response.next;
+                
+                if (!url || offset >= MAX_TRACKS_TO_PROCESS) {
+                    break;
+                }
+            }
+
+            updateStatus(`Fetched all tracks. Total: ${tracks.length}.`, 'text-white', 30);
+            return tracks;
+        }
+
+
+        /** Fetches genres for a list of artist IDs. */
         async function fetchArtistGenres(artistIds) {
             const genreMap = {};
             const batches = [];
@@ -489,22 +573,17 @@
                         }
                     });
                 }
-                // Small delay to respect rate limits
                 await new Promise(resolve => setTimeout(resolve, 50)); 
             }
 
             return genreMap;
         }
 
-        /**
-         * Creates a new public playlist with the provided name.
-         * @param {string} playlistName The full name for the playlist (e.g., "[POP] - Indie Pop").
-         * @returns {Promise<object>} The ID and URL of the newly created playlist.
-         */
-        async function createPlaylist(playlistName) {
+        /** Creates a new public playlist with the provided name. */
+        async function createPlaylist(playlistName, description) {
             const body = {
                 name: playlistName, 
-                description: `Automatically created playlist for genre category sorting.`,
+                description: description,
                 public: true, 
             };
 
@@ -516,35 +595,55 @@
             };
         }
 
-        /**
-         * Adds tracks to an existing playlist, handling the 100 tracks per request limit.
-         * @param {string} playlistId The ID of the target playlist.
-         * @param {Array<string>} trackUris Array of track URIs.
-         */
+        /** Adds tracks to an existing playlist. */
         async function addTracksToPlaylist(playlistId, trackUris) {
             for (let i = 0; i < trackUris.length; i += MAX_TRACKS_PER_PLAYLIST_ADD) {
                 const batch = trackUris.slice(i, i + MAX_TRACKS_PER_PLAYLIST_ADD);
                 const body = { uris: batch };
 
                 await fetchSpotify(`${API_BASE}/playlists/${playlistId}/tracks`, 'POST', body);
-                
-                // Small delay to respect rate limits
                 await new Promise(resolve => setTimeout(resolve, 50)); 
             }
         }
 
-        /**
-         * Main orchestration function.
-         */
+        /** Main orchestration function. */
         async function startSortingProcess() {
             try {
+                // Disable button during process
+                document.getElementById('sortButton').disabled = true;
+
                 // 1. Get User ID
                 await getCurrentUser();
 
-                // 2. Fetch Liked Tracks
-                const tracks = await fetchAllLikedTracks();
+                // 2. Fetch Source Tracks
+                const source = document.getElementById('sourceSelect').value;
+                let tracks = [];
+                let playlistTitle = "Liked Songs";
+
+                if (source === 'liked_songs') {
+                    tracks = await fetchAllLikedTracks();
+                } else if (source === 'playlist') {
+                    const input = document.getElementById('playlistInput').value;
+                    const playlistId = extractIdFromUrl(input);
+
+                    if (!playlistId) {
+                        updateStatus("Error: Please enter a valid Playlist URL or ID.", 'text-red-400', 0);
+                        return;
+                    }
+                    tracks = await fetchPlaylistTracks(playlistId);
+                    
+                    // Try to fetch playlist details to get a better title
+                    try {
+                        const playlistDetails = await fetchSpotify(`${API_BASE}/playlists/${playlistId}?fields=name`);
+                        playlistTitle = playlistDetails.name;
+                    } catch (e) {
+                        console.warn("Could not fetch playlist name, using default.");
+                    }
+                }
+
                 if (tracks.length === 0) {
-                    updateStatus("No liked songs found in your library.", 'text-yellow-400', 100);
+                    updateStatus(`No tracks found in the selected source (${playlistTitle}).`, 'text-yellow-400', 100);
+                    document.getElementById('sortButton').disabled = false;
                     return;
                 }
 
@@ -554,101 +653,98 @@
                 // 4. Fetch Genres for all Artists
                 const artistGenreMap = await fetchArtistGenres(uniqueArtistIds);
 
-                // 5. Sort Tracks by Category and Genre
-                // Structure: { 'CategoryName': { 'GenreName': [trackUris] } }
-                const categoryGenreTrackMap = {};
+                // 5. Sort Tracks by Broad Category ONLY
+                // Structure: { 'CategoryName': [trackUris] } 
+                const categoryTrackMap = {};
+                const categories = Object.keys(GENRE_CATEGORY_MAP);
+                
+                // Initialize map with all required categories (to ensure all are present)
+                categories.forEach(cat => { categoryTrackMap[cat] = []; });
+
                 tracks.forEach(track => {
-                    const genres = artistGenreMap[track.artistId] || ['unsorted'];
+                    const genres = artistGenreMap[track.artistId] || ['pop']; // Use 'pop' as a safe default for artists with no genres
                     
-                    genres.forEach(spotifyGenre => {
-                        // Clean up the Spotify genre name (e.g., 'indie pop' -> 'Indie Pop')
-                        const cleanedGenreName = spotifyGenre.split(' ').map(word => 
-                            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-                        ).join(' ');
+                    let assignedCategory = null; 
 
-                        // Map the genre to a broad folder category (e.g., 'Indie Pop' -> 'Pop')
-                        const category = mapGenreToCategory(spotifyGenre);
-                        
-                        if (!categoryGenreTrackMap[category]) {
-                            categoryGenreTrackMap[category] = {};
-                        }
+                    // 1. Try explicit match for any of the artist's genres
+                    for (const spotifyGenre of genres) {
+                        assignedCategory = mapGenreToCategory(spotifyGenre);
+                        if (assignedCategory) break; 
+                    }
 
-                        if (!categoryGenreTrackMap[category][cleanedGenreName]) {
-                            categoryGenreTrackMap[category][cleanedGenreName] = [];
-                        }
-                        
-                        // Add the track URI to the specific genre list within its category
-                        if (!categoryGenreTrackMap[category][cleanedGenreName].includes(track.uri)) {
-                           categoryGenreTrackMap[category][cleanedGenreName].push(track.uri);
-                        }
-                    });
+                    // 2. If no explicit match, try closest fit keyword matching
+                    if (!assignedCategory) {
+                        assignedCategory = findClosestCategory(genres);
+                    }
+                    
+                    // Add the track to the corresponding category's list
+                    if (!categoryTrackMap[assignedCategory].includes(track.uri)) {
+                       categoryTrackMap[assignedCategory].push(track.uri);
+                    }
                 });
 
-                // Calculate the total number of playlists we are about to create for progress tracking
-                const estimatedTotalPlaylists = Object.values(categoryGenreTrackMap).reduce((acc, current) => acc + Object.keys(current).length, 0);
+                // Filter out categories that ended up empty
+                const activeCategories = Object.entries(categoryTrackMap).filter(([, uris]) => uris.length > 0);
+                const estimatedTotalPlaylists = activeCategories.length;
 
-                updateStatus(`Sorting complete. Found ${Object.keys(categoryGenreTrackMap).length} categories with ${estimatedTotalPlaylists} total playlists.`, 'text-white', 65);
+                updateStatus(`Sorting complete. Found ${estimatedTotalPlaylists} categories to create playlists for.`, 'text-white', 65);
 
                 // 6. Create Playlists and Add Tracks
                 const playlistMap = {};
                 let playlistCount = 0;
 
-                for (const [category, genresInThisCategory] of Object.entries(categoryGenreTrackMap)) {
+                for (const [category, trackUris] of activeCategories) {
+                    playlistCount++;
+                    
+                    // New Playlist Name format: [CATEGORY] Sorter (from Source)
+                    const newPlaylistName = `[${category.toUpperCase()}] Sorter (${playlistTitle})`;
 
-                    for (const [genreName, trackUris] of Object.entries(genresInThisCategory)) {
-                        // Skip empty genres
-                        if (trackUris.length === 0) continue; 
-                        
-                        playlistCount++;
-                        
-                        // New Playlist Name format: [CATEGORY] Genre Name
-                        const newPlaylistName = `[${category.toUpperCase()}] ${genreName}`;
+                    const percentage = 65 + (playlistCount / estimatedTotalPlaylists) * 35;
+                    updateStatus(
+                        "Creating and populating playlists...", 
+                        'text-white', 
+                        percentage, 
+                        `Processing Playlist: ${newPlaylistName} (${trackUris.length} tracks) - ${playlistCount}/${estimatedTotalPlaylists}`
+                    );
 
-                        const percentage = 65 + (playlistCount / estimatedTotalPlaylists) * 35;
-                        updateStatus(
-                            "Creating and populating playlists...", 
-                            'text-white', 
-                            percentage, 
-                            `Processing Playlist: ${newPlaylistName} (${trackUris.length} tracks) - ${playlistCount}/${estimatedTotalPlaylists}`
-                        );
+                    // A. Create Playlist (Use category name as description)
+                    const description = `Tracks categorized as ${category} from your ${playlistTitle}.`;
+                    const newPlaylist = await createPlaylist(newPlaylistName, description);
 
-                        // A. Create Playlist
-                        const newPlaylist = await createPlaylist(newPlaylistName);
-
-                        // B. Add Tracks to Playlist
-                        await addTracksToPlaylist(newPlaylist.id, trackUris);
-                        
-                        playlistMap[newPlaylistName] = `[${category.toUpperCase()}] ${genreName}`;
-                            url: newPlaylist.url,
-                            trackUris: trackUris
-                        };
-                    }
+                    // B. Add Tracks to Playlist
+                    await addTracksToPlaylist(newPlaylist.id, trackUris);
+                    
+                    playlistMap[newPlaylistName] = {
+                        url: newPlaylist.url,
+                        trackUris: trackUris
+                    };
                 }
 
-                updateStatus("✅ All playlists created and tracks added successfully!", 'text-spotifyGreen', 100, "Check your Spotify account under Playlists!");
+                updateStatus("✅ All folders/playlists created and tracks added successfully!", 'text-spotifyGreen', 100, "Look for the new playlists in your Spotify library!");
                 displayResults(playlistMap);
 
             } catch (error) {
                 console.error("Critical Sorting Error:", error);
-                // Status is updated within fetchSpotify or other error checks, but ensure a final message is shown
                 if (document.getElementById('statusMessage').style.color !== 'red') {
                     updateStatus("A critical error occurred during the process. See console for details.", 'text-red-400', 100);
                 }
+            } finally {
+                document.getElementById('sortButton').disabled = false;
             }
         }
+        window.startSortingProcess = startSortingProcess; // Expose to global scope for onclick
 
         // --- INITIALIZATION AND ROUTER ---
 
-        /**
-         * Main entry point to check for auth code and start process.
-         */
+        /** Main entry point to check for auth code and start process. */
         function initializeApp() {
             const params = new URLSearchParams(window.location.search);
             const code = params.get('code');
 
             if (accessToken) {
-                // If token exists (e.g., cached or retrieved), jump to start
-                startSortingProcess();
+                // Should only happen if token was cached, but let's just show options.
+                document.getElementById('optionsArea').classList.remove('hidden');
+                updateStatus("Authentication successful! Ready to sort.", 'text-spotifyGreen', 10);
             } else if (code) {
                 // Code received: hide link container and start auth flow
                 document.getElementById('initialView').classList.add('hidden');
@@ -669,4 +765,3 @@
     </script>
 </body>
 </html>
-
