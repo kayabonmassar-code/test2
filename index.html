@@ -396,11 +396,15 @@
 
         /** Generates and displays the Spotify login link for manual copy/paste. */
         async function redirectToSpotifyAuth() {
+            console.log("Login button clicked. Starting manual auth link generation...");
+            updateStatus("Generating secure login link...", 'text-yellow-400', 0); // Provide immediate feedback
+
             if (!REDIRECT_URI) {
                 updateStatus("🚨 Setup Error: Could not determine the REDIRECT_URI.", 'text-red-400');
                 return;
             }
 
+            // PKCE setup (asynchronous hashing required)
             const codeVerifier = generateRandomString(128);
             const hashed = await sha256(codeVerifier);
             const codeChallenge = base64UrlEncode(hashed);
@@ -418,9 +422,14 @@
 
             const redirectUrl = `${AUTH_URL}?${params.toString()}`;
             
+            // Show the manual link container and populate the link
             document.getElementById('initialView').classList.add('hidden');
             document.getElementById('authLinkContainer').classList.remove('hidden');
             document.getElementById('authLink').value = redirectUrl;
+            
+            // Update status with instructions
+            updateStatus("Login link generated. Please copy and paste the link below.", 'text-yellow-300', 10); 
+            console.log("Manual Auth Link Generated.");
         }
 
         /** Exchanges the authorization code for an access token. */
