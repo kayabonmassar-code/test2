@@ -75,17 +75,6 @@
 
         <!-- Dynamic Content Area -->
         <div id="content">
-            <!-- Initial View is now hidden by default and acts as a placeholder -->
-            <div id="initialView" class="text-center hidden">
-                <p class="text-slate-300 mb-6">
-                    This tool requires access to your Spotify profile and permission to create new playlists.
-                </p>
-                <!-- This button is only here for display but is functionally replaced by the immediate display of the link below -->
-                <button id="loginButton" class="w-full bg-spotifyGreen text-spotifyDark font-bold py-3 rounded-full shadow-lg">
-                    Log in with Spotify
-                </button>
-            </div>
-
             <!-- Manual Link Display Area - SHOWN IMMEDIATELY IF NO AUTH CODE -->
             <div id="authLinkContainer" class="p-4 bg-slate-800 rounded-lg hidden">
                 <p class="text-yellow-300 font-bold mb-3">Manual Login Required</p>
@@ -151,40 +140,52 @@
         const TOKEN_URL = 'https://accounts.spotify.com/api/token';
         const API_BASE = 'https://api.spotify.com/v1';
 
-        // --- NEW: FOLDER-SPECIFIC GENRE MAPPING (for many small playlists) ---
-        // Key: Folder Name Prefix
+        // --- NEW: EXPANDED AND GENERALIZED FOLDER-SPECIFIC GENRE MAPPING ---
+        // Key: Broad Folder Name Prefix (More General)
         // Value: Array of specific Spotify genres to be grouped under that folder
         const FOLDER_PLAYLIST_MAP = {
-            'POP & R&B': [
+            'POP': [
                 'pop', 'indie pop', 'dance pop', 'electropop', 'k-pop', 'j-pop', 'alt z', 'bedroom pop', 'boy band', 'girl group', 
-                'bubblegum pop', 'pc music', 'trap', 'rap', 'r&b', 'hip hop', 'folk pop', 'soul', 'funk',
-                'vocal jazz', 'singer-songwriter', 'country pop', 'alternative r&b', 'neo soul', 'chill pop', 
-                'acoustic pop', 'mellow gold', 'indie soul', 'lo-fi beats', 'gospel', 'smooth jazz', 'jazz fusion', 'quiet storm'
+                'bubblegum pop', 'vocal jazz', 'singer-songwriter', 'country pop', 'acoustic pop', 'mellow gold', 
+                'indie soul', 'lo-fi pop', 'synth pop', 'chamber pop', 'baroque pop', 'celtic pop', 'j-pop'
             ],
-            'ELECTRONIC & DANCE': [
-                'electronic', 'edm', 'house', 'techno', 'trance', 'dubstep', 'ambient', 'downtempo', 'glitchcore', 'wave', 'vaporwave', 
+            'ROCK': [
+                'modern rock', 'indie rock', 'hard rock', 'classic rock', 'metal', 'heavy metal', 'nu metal', 'symphonic metal', 
+                'power metal', 'grunge', 'punk', 'post-punk', 'goth rock', 'shoegaze', 'math rock', 'doom metal', 'black metal', 
+                'death metal', 'art rock', 'progressive rock', 'alternative rock', 'glam metal', 'pop punk', 'ska', 
+                'garage rock', 'rockabilly', 'soft rock', 'new wave', 'post-rock', 'emo', 'screamo'
+            ],
+            'DANCE & EDM': [
+                'electronic', 'edm', 'house', 'techno', 'trance', 'dubstep', 'glitchcore', 'wave', 'vaporwave', 
                 'lo-fi house', 'drum and bass', 'future bass', 'bass music', 'minimal techno', 'progressive house', 'deep house', 
-                'chillout', 'trip hop', 'idm', 'electro', 'breakbeat', 'chillwave', 'synth pop', 'dance', 'workout', 'shuffle', 'party', 
-                'tropical house', 'uplifting trance', 'eurodance', 'hyperpop', 'digicore', 'bass house'
+                'trip hop', 'idm', 'electro', 'breakbeat', 'synthwave', 'dance', 'workout', 'shuffle', 'party', 
+                'tropical house', 'uplifting trance', 'eurodance', 'hyperpop', 'digicore', 'pc music', 'hardcore'
             ],
-            'ROCK & METAL': [
-                'modern rock', 'indie rock', 'hard rock', 'classic rock', 'metal', 'heavy metal', 'nu metal', 'symphonic metal', 'power metal', 'grunge', 
-                'punk', 'post-punk', 'goth rock', 'shoegaze', 'math rock', 'doom metal', 'black metal', 'death metal', 
-                'art rock', 'progressive rock', 'alternative rock', 'glam metal', 'pop punk', 'ska', 'garage rock', 'rockabilly', 'soft rock'
+            'HIP HOP & R&B': [
+                'trap', 'rap', 'r&b', 'hip hop', 'soul', 'funk', 'alternative r&b', 'neo soul', 'quiet storm', 
+                'lo-fi beats', 'gospel', 'classic soul', 'classic funk', 'motown', 'rhythm and blues', 'gangsta rap', 
+                'conscious hip hop', 'southern hip hop', 'jazz rap'
+            ],
+            'CHILL & AMBIENT': [
+                'ambient', 'downtempo', 'chillout', 'chillwave', 'lo-fi', 'sleep', 'healing', 'meditation', 
+                'drone', 'dark ambient', 'sound art', 'field recording', 'post-rock'
             ],
             'WORLD & LATIN': [ 
                 'afrobeat', 'latin', 'cumbia', 'salsa', 'merengue', 'reggae', 'brazilian pop', 'tango', 'world fusion', 
-                'kizomba', 'bachata', 'afrobeats', 'flamenco', 'j-rock', 'turkish pop', 'indian pop', 'bollywood', 'indie folk', 'bluegrass', 'celtic'
+                'kizomba', 'bachata', 'afrobeats', 'flamenco', 'turkish pop', 'indian pop', 'bollywood', 'indie folk', 
+                'bluegrass', 'celtic', 'salsa', 'bossa nova', 'tango'
             ],
-            'SOUNDTRACK & EXPERIMENTAL': [
-                'experimental', 'noise', 'abstract', 'drone', 'sound art', 'avant-garde', 'glitch', 'free jazz', 
-                'industrial', 'minimalism', 'field recording', 'microtonal', 'dark ambient', 'modern classical', 'soundtrack',
-                'ambient black metal', 'drone metal', 'opera', 'classical'
+            'JAZZ & BLUES': [
+                'jazz', 'blues', 'vocal jazz', 'smooth jazz', 'jazz fusion', 'big band', 'swing', 'delta blues', 
+                'electric blues', 'chicago blues', 'modern jazz', 'bebop'
             ],
-            'RETRO & DECADES': [
-                '80s pop', '90s pop', 'disco', 'synthwave', 'new wave', 'new romantic', 
-                'yacht rock', 'motown', 'classic soul', 'classic funk', 'classic pop', 'vintage', 'old school', 'rhythm and blues'
-            ]
+            'CLASSICAL & SOUNDTRACK': [
+                'soundtrack', 'modern classical', 'opera', 'classical', 'romantic', 'baroque', 'neoclassical', 
+                'orchestral', 'instrumental'
+            ],
+            'EXPERIMENTAL': [
+                'experimental', 'noise', 'abstract', 'glitch', 'avant-garde', 'industrial', 'microtonal', 'drone metal'
+            ],
         };
 
         // --- GLOBAL STATE ---
@@ -236,7 +237,7 @@
             return new Uint8Array(hash);
         }
 
-        /** Fetches data from Spotify API with built-in access token handling. */
+        /** Fetches data from Spotify API with built-in access token handling and backoff. */
         async function fetchSpotify(url, method = 'GET', body = null) {
             const headers = {
                 'Authorization': `Bearer ${accessToken}`,
@@ -250,17 +251,15 @@
             };
 
             let response;
-            // Implemented exponential backoff for API calls
             let retries = 0;
             const maxRetries = 3;
-            const baseDelay = 1000; // 1 second
+            const baseDelay = 1000;
 
             while (retries < maxRetries) {
                 try {
                     response = await fetch(url, options);
-                    if (response.status !== 429) break; // Not rate-limited, proceed
+                    if (response.status !== 429) break;
 
-                    // Rate-limited (429), implement backoff
                     retries++;
                     const delay = baseDelay * Math.pow(2, retries - 1) + Math.random() * 1000;
                     console.warn(`Rate limit hit (429). Retrying in ${Math.round(delay / 1000)}s...`);
@@ -280,7 +279,7 @@
                 if (contentType && contentType.indexOf("application/json") !== -1) {
                     return response.json();
                 } else {
-                    return {}; // Return empty object for 204 No Content
+                    return {};
                 }
             } else {
                 let errorDetails = `Status ${response.status}: ${response.statusText}`;
@@ -300,13 +299,12 @@
         }
 
         /**
-         * NEW LOGIC: Finds all target playlist names ([Folder] - [Genre]) for the given artist genres.
-         * This creates many small, highly specific playlists.
+         * Finds all target playlist names ([Folder] - [Genre]) for the given artist genres.
          */
         function getPlaylistTargets(genres) {
             const targets = new Set();
             const lowerGenres = genres.map(g => g.toLowerCase());
-            const defaultTarget = 'UNCATEGORIZED';
+            const defaultTargetPrefix = 'MISCELLANEOUS';
             let foundMatch = false;
 
             // 1. Check for explicit matches against the FOLDER_PLAYLIST_MAP
@@ -323,15 +321,17 @@
                 }
             }
 
-            // 2. Fallback if no match was found
-            if (!foundMatch) {
-                // If there are genres but they didn't match the map, use the primary genre as a target
-                const primaryGenre = lowerGenres.length > 0 ? lowerGenres[0] : 'Unknown';
+            // 2. Fallback if no specific genre match was found
+            if (!foundMatch && lowerGenres.length > 0) {
+                 // Use the artist's first genre as the specific genre for the UNCATEGORIZED folder
+                const primaryGenre = lowerGenres[0];
                 const genreTitle = primaryGenre.replace(/\b\w/g, l => l.toUpperCase());
-                targets.add(`[${defaultTarget}] - ${genreTitle}`);
+                targets.add(`[${defaultTargetPrefix}] - ${genreTitle}`);
+            } else if (!foundMatch) {
+                 // Final fallback for truly unknown/genreless tracks
+                 targets.add(`[${defaultTargetPrefix}] - Unknown`);
             }
 
-            // If an artist has multiple genres, the track will be added to multiple playlists (one for each genre)
             return Array.from(targets);
         }
 
@@ -386,7 +386,7 @@
             resultsDiv.classList.remove('hidden');
             playlistList.innerHTML = '';
 
-            for (const [playlistName, playlist] of Object.entries(playlists)) {
+            for (const [playlistName, playlist] of Object.entries(playlists).sort((a, b) => a[0].localeCompare(b[0]))) {
                 if (playlist.trackUris.length > 0) {
                     const li = document.createElement('li');
                     const link = document.createElement('a');
@@ -488,62 +488,28 @@
             userId = user.id;
         }
 
-        /** Fetches all liked tracks for the user. */
-        async function fetchAllLikedTracks() {
+        /** Fetches all liked tracks for the user or from a playlist. */
+        async function fetchTracks(endpoint, sourceName) {
             let tracks = [];
-            let url = `${API_BASE}/me/tracks?limit=50`;
+            let url = `${API_BASE}${endpoint}?limit=50`;
             let total = 1; 
             let offset = 0;
 
             while (offset < total && offset < MAX_TRACKS_TO_PROCESS) {
-                updateStatus("Fetching liked songs...", 'text-white', 15 + (offset / Math.min(total, MAX_TRACKS_TO_PROCESS)) * 15, `Fetched ${offset} of ${total} tracks...`);
+                updateStatus(`Fetching tracks from ${sourceName}...`, 'text-white', 15 + (offset / Math.min(total, MAX_TRACKS_TO_PROCESS)) * 15, `Fetched ${offset} of ${total} tracks...`);
 
                 const response = await fetchSpotify(url);
                 total = response.total;
                 
                 response.items.forEach(item => {
-                    if (item.track && item.track.uri && item.track.artists.length > 0) {
+                    // Check if item is a saved track or a playlist track object
+                    const track = item.track || item;
+                    if (track && track.uri && track.artists && track.artists.length > 0) {
                         tracks.push({
-                            id: item.track.id,
-                            uri: item.track.uri,
-                            name: item.track.name,
-                            artistId: item.track.artists[0].id
-                        });
-                    }
-                });
-
-                offset += response.items.length;
-                url = response.next;
-                
-                if (!url || offset >= MAX_TRACKS_TO_PROCESS) {
-                    break;
-                }
-            }
-
-            updateStatus(`Fetched all tracks. Total: ${tracks.length}.`, 'text-white', 30);
-            return tracks;
-        }
-        
-        /** Fetches all tracks from a specific playlist ID. */
-        async function fetchPlaylistTracks(playlistId) {
-            let tracks = [];
-            let url = `${API_BASE}/playlists/${playlistId}/tracks?limit=50&fields=total,next,items(track(id,uri,name,artists(id)))`;
-            let total = 1; 
-            let offset = 0;
-
-            while (offset < total && offset < MAX_TRACKS_TO_PROCESS) {
-                updateStatus("Fetching playlist tracks...", 'text-white', 15 + (offset / Math.min(total, MAX_TRACKS_TO_PROCESS)) * 15, `Fetched ${offset} of ${total} tracks...`);
-
-                const response = await fetchSpotify(url);
-                total = response.total;
-                
-                response.items.forEach(item => {
-                    if (item.track && item.track.id && item.track.artists.length > 0) {
-                        tracks.push({
-                            id: item.track.id,
-                            uri: item.track.uri,
-                            name: item.track.name,
-                            artistId: item.track.artists[0].id
+                            id: track.id,
+                            uri: track.uri,
+                            name: track.name,
+                            artistId: track.artists[0].id
                         });
                     }
                 });
@@ -566,7 +532,6 @@
             const genreMap = {};
             const batches = [];
             
-            // Batch artists into groups of 50 (API limit)
             for (let i = 0; i < artistIds.length; i += MAX_ARTISTS_PER_BATCH) {
                 batches.push(artistIds.slice(i, i + MAX_ARTISTS_PER_BATCH));
             }
@@ -621,7 +586,6 @@
         /** Main orchestration function. */
         async function startSortingProcess() {
             try {
-                // Disable button during process
                 document.getElementById('sortButton').disabled = true;
 
                 // 1. Get User ID
@@ -633,7 +597,7 @@
                 let playlistTitle = "Liked Songs";
 
                 if (source === 'liked_songs') {
-                    tracks = await fetchAllLikedTracks();
+                    tracks = await fetchTracks('/me/tracks', playlistTitle);
                 } else if (source === 'playlist') {
                     const input = document.getElementById('playlistInput').value;
                     const playlistId = extractIdFromUrl(input);
@@ -642,7 +606,7 @@
                         updateStatus("Error: Please enter a valid Playlist URL or ID.", 'text-red-400', 0);
                         return;
                     }
-                    tracks = await fetchPlaylistTracks(playlistId);
+                    tracks = await fetchTracks(`/playlists/${playlistId}/tracks?fields=items(track(id,uri,name,artists(id))),total,next`, 'Custom Playlist');
                     
                     try {
                         const playlistDetails = await fetchSpotify(`${API_BASE}/playlists/${playlistId}?fields=name`);
@@ -665,27 +629,23 @@
                 const artistGenreMap = await fetchArtistGenres(uniqueArtistIds);
 
                 // 5. Sort Tracks by specific Genre (many small playlists)
-                // Structure: { '[Folder Prefix] - [Specific Genre]': [trackUris] } 
                 const playlistTrackMap = {}; 
 
                 tracks.forEach(track => {
                     const genres = artistGenreMap[track.artistId] || [];
                     
-                    // Get all target playlist names for this track
                     const targetPlaylistNames = getPlaylistTargets(genres); 
 
                     targetPlaylistNames.forEach(playlistName => {
                         if (!playlistTrackMap[playlistName]) {
                            playlistTrackMap[playlistName] = [];
                         }
-                        // Add track only if not already present (prevents duplicates if an artist has multiple matching genres)
                         if (!playlistTrackMap[playlistName].includes(track.uri)) {
                            playlistTrackMap[playlistName].push(track.uri);
                         }
                     });
                 });
 
-                // Filter out playlists that ended up empty
                 const activePlaylists = Object.entries(playlistTrackMap).filter(([, uris]) => uris.length > 0);
                 const estimatedTotalPlaylists = activePlaylists.length;
 
@@ -697,8 +657,6 @@
 
                 for (const [newPlaylistName, trackUris] of activePlaylists) {
                     playlistCount++;
-                    
-                    // The playlist name is already formatted as '[FOLDER] - [GENRE]'
                     
                     const percentage = 65 + (playlistCount / estimatedTotalPlaylists) * 35;
                     updateStatus(
@@ -746,19 +704,17 @@
             const code = params.get('code');
 
             if (accessToken) {
-                // If token exists (shouldn't happen in this sandbox, but check anyway)
                 document.getElementById('optionsArea').classList.remove('hidden');
                 updateStatus("Authentication successful! Ready to sort.", 'text-spotifyGreen', 10);
             } else if (code) {
                 // Code received: start auth flow
-                document.getElementById('initialView').classList.add('hidden');
                 document.getElementById('authLinkContainer').classList.add('hidden');
                 document.getElementById('statusArea').classList.remove('hidden');
                 
                 window.history.pushState({}, document.title, REDIRECT_URI);
                 exchangeCodeForToken(code);
             } else {
-                // Show the manual link immediately (since automatic redirect fails here)
+                // Show the manual link immediately 
                 redirectToSpotifyAuth();
             }
         }
