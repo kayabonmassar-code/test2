@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -114,6 +116,19 @@
         const TOKEN_URL = 'https://accounts.spotify.com/api/token';
         const API_BASE = 'https://api.spotify.com/v1';
 
+        // --- NEW: GENRE CATEGORY MAPPING ---
+        // This maps a broad range of Spotify's granular genres to your desired category folders.
+        const GENRE_CATEGORY_MAP = {
+            'Pop': ['pop', 'indie pop', 'dance pop', 'electropop', 'k-pop', 'j-pop', 'alt z', 'bedroom pop', 'boy band', 'girl group', 'hyperpop', 'bubblegum pop', 'pc music'],
+            'Electronic': ['electronic', 'edm', 'house', 'techno', 'trance', 'dubstep', 'ambient', 'downtempo', 'glitchcore', 'wave', 'vaporwave', 'lo-fi house', 'drum and bass', 'future bass'],
+            'Experimental': ['experimental', 'noise', 'abstract', 'drone', 'sound art', 'post-punk', 'avant-garde', 'glitch', 'free jazz', 'industrial', 'minimalism'],
+            'Retro': ['80s pop', '90s pop', 'classic rock', 'disco', 'funk', 'soul', 'synthwave', 'new wave', 'new romantic', 'yacht rock', 'motown', 'classic soul', 'classic funk'],
+            'Upbeat': ['dance', 'workout', 'shuffle', 'party', 'tropical house', 'uplifting trance', 'eurodance', 'pop punk', 'ska', 'merengue', 'salsa', 'cumbia'],
+            // Hyperpop genres are included in Pop for consolidation, but we can separate them if a distinct category is needed
+            'Hyperpop': ['hyperpop', 'bubblegum pop', 'pc music', 'drain', 'digicore'],
+            'Unsorted': ['unsorted'] // Default fallback category
+        };
+
         // --- GLOBAL STATE ---
         let accessToken = '';
         let userId = '';
@@ -214,6 +229,31 @@
             }
         }
 
+        /**
+         * Maps a Spotify genre to one of the defined folder categories.
+         * @param {string} spotifyGenre A genre string from Spotify.
+         * @returns {string} The folder category name (e.g., 'Pop', 'Electronic').
+         */
+        function mapGenreToCategory(spotifyGenre) {
+            const lowerGenre = spotifyGenre.toLowerCase();
+            for (const category in GENRE_CATEGORY_MAP) {
+                // Check if the Spotify genre is explicitly listed in a category
+                if (GENRE_CATEGORY_MAP[category].includes(lowerGenre)) {
+                    return category;
+                }
+                // Also check if the Spotify genre name contains the category name (e.g., 'trap' contains 'pop')
+                // This is a more aggressive matching, but helps catch edge cases.
+                if (lowerGenre.includes(category.toLowerCase())) {
+                     // Check for 'hyperpop' explicitly to ensure it doesn't get caught by 'pop'
+                     if (category === 'Pop' && lowerGenre.includes('hyperpop')) {
+                         return 'Hyperpop';
+                     }
+                     return category;
+                }
+            }
+            return 'Unsorted';
+        }
+
         // --- UI & STATUS HANDLING ---
 
         /**
@@ -278,13 +318,13 @@
             resultsDiv.classList.remove('hidden');
             playlistList.innerHTML = '';
 
-            for (const [genre, playlist] of Object.entries(playlists)) {
+            for (const [playlistName, playlist] of Object.entries(playlists)) {
                 const li = document.createElement('li');
                 const link = document.createElement('a');
                 link.href = playlist.url;
                 link.target = '_blank';
                 link.classList.add('text-indigo-300', 'hover:text-indigo-400', 'hover:underline', 'font-medium');
-                link.textContent = `▶️ ${genre} (${playlist.trackUris.length} tracks)`;
+                link.textContent = `▶️ ${playlistName} (${playlist.trackUris.length} tracks)`;
                 li.appendChild(link);
                 playlistList.appendChild(li);
             }
@@ -457,15 +497,15 @@
         }
 
         /**
-         * Creates a new public playlist for a specific genre.
-         * @param {string} genre The genre name.
+         * Creates a new public playlist with the provided name.
+         * @param {string} playlistName The full name for the playlist (e.g., "[POP] - Indie Pop").
          * @returns {Promise<object>} The ID and URL of the newly created playlist.
          */
-        async function createPlaylist(genre) {
+        async function createPlaylist(playlistName) {
             const body = {
-                name: `{genre}`,
-                description: `Automatically created playlist for the genre: ${genre}`,
-                public: true, // Set to false if you want private playlists
+                name: playlistName, 
+                description: `Automatically created playlist for genre category sorting.`,
+                public: true, 
             };
 
             const response = await fetchSpotify(`${API_BASE}/users/${userId}/playlists`, 'POST', body);
@@ -486,7 +526,6 @@
                 const batch = trackUris.slice(i, i + MAX_TRACKS_PER_PLAYLIST_ADD);
                 const body = { uris: batch };
 
-                // No need to wait for this to resolve before starting the next batch, but we will for simplicity/rate limiting
                 await fetchSpotify(`${API_BASE}/playlists/${playlistId}/tracks`, 'POST', body);
                 
                 // Small delay to respect rate limits
@@ -515,58 +554,75 @@
                 // 4. Fetch Genres for all Artists
                 const artistGenreMap = await fetchArtistGenres(uniqueArtistIds);
 
-                // 5. Sort Tracks by Genre
-                const genreTrackMap = {};
+                // 5. Sort Tracks by Category and Genre
+                // Structure: { 'CategoryName': { 'GenreName': [trackUris] } }
+                const categoryGenreTrackMap = {};
                 tracks.forEach(track => {
-                    const genres = artistGenreMap[track.artistId] || ['Unsorted'];
+                    const genres = artistGenreMap[track.artistId] || ['unsorted'];
                     
-                    // Assign track to ALL genres associated with the artist
-                    genres.forEach(genre => {
-                        // Capitalize and clean up genre names
-                        const capitalizedGenre = genre.split(' ').map(word => 
+                    genres.forEach(spotifyGenre => {
+                        // Clean up the Spotify genre name (e.g., 'indie pop' -> 'Indie Pop')
+                        const cleanedGenreName = spotifyGenre.split(' ').map(word => 
                             word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
                         ).join(' ');
 
-                        if (!genreTrackMap[capitalizedGenre]) {
-                            genreTrackMap[capitalizedGenre] = [];
+                        // Map the genre to a broad folder category (e.g., 'Indie Pop' -> 'Pop')
+                        const category = mapGenreToCategory(spotifyGenre);
+                        
+                        if (!categoryGenreTrackMap[category]) {
+                            categoryGenreTrackMap[category] = {};
                         }
-                        // Only add the URI if it's not already in the list for this genre
-                        if (!genreTrackMap[capitalizedGenre].includes(track.uri)) {
-                           genreTrackMap[capitalizedGenre].push(track.uri);
+
+                        if (!categoryGenreTrackMap[category][cleanedGenreName]) {
+                            categoryGenreTrackMap[category][cleanedGenreName] = [];
+                        }
+                        
+                        // Add the track URI to the specific genre list within its category
+                        if (!categoryGenreTrackMap[category][cleanedGenreName].includes(track.uri)) {
+                           categoryGenreTrackMap[category][cleanedGenreName].push(track.uri);
                         }
                     });
                 });
 
-                updateStatus(`Sorting complete. Found ${Object.keys(genreTrackMap).length} unique genres.`, 'text-white', 65);
+                // Calculate the total number of playlists we are about to create for progress tracking
+                const estimatedTotalPlaylists = Object.values(categoryGenreTrackMap).reduce((acc, current) => acc + Object.keys(current).length, 0);
+
+                updateStatus(`Sorting complete. Found ${Object.keys(categoryGenreTrackMap).length} categories with ${estimatedTotalPlaylists} total playlists.`, 'text-white', 65);
 
                 // 6. Create Playlists and Add Tracks
                 const playlistMap = {};
-                const totalGenres = Object.keys(genreTrackMap).length;
-                let genreCount = 0;
+                let playlistCount = 0;
 
-                for (const [genre, trackUris] of Object.entries(genreTrackMap)) {
-                    // Skip empty genres, though the logic above should prevent it
-                    if (trackUris.length === 0) continue; 
-                    
-                    genreCount++;
-                    const percentage = 65 + (genreCount / totalGenres) * 35;
-                    updateStatus(
-                        "Creating and populating playlists...", 
-                        'text-white', 
-                        percentage, 
-                        `Processing genre: ${genre} (${trackUris.length} tracks) - ${genreCount}/${totalGenres}`
-                    );
+                for (const [category, genresInThisCategory] of Object.entries(categoryGenreTrackMap)) {
 
-                    // A. Create Playlist
-                    const newPlaylist = await createPlaylist(genre);
-                    
-                    // B. Add Tracks to Playlist
-                    await addTracksToPlaylist(newPlaylist.id, trackUris);
-                    
-                    playlistMap[genre] = {
-                        url: newPlaylist.url,
-                        trackUris: trackUris
-                    };
+                    for (const [genreName, trackUris] of Object.entries(genresInThisCategory)) {
+                        // Skip empty genres
+                        if (trackUris.length === 0) continue; 
+                        
+                        playlistCount++;
+                        
+                        // New Playlist Name format: [CATEGORY] Genre Name
+                        const newPlaylistName = `[${category.toUpperCase()}] ${genreName}`;
+
+                        const percentage = 65 + (playlistCount / estimatedTotalPlaylists) * 35;
+                        updateStatus(
+                            "Creating and populating playlists...", 
+                            'text-white', 
+                            percentage, 
+                            `Processing Playlist: ${newPlaylistName} (${trackUris.length} tracks) - ${playlistCount}/${estimatedTotalPlaylists}`
+                        );
+
+                        // A. Create Playlist
+                        const newPlaylist = await createPlaylist(newPlaylistName);
+
+                        // B. Add Tracks to Playlist
+                        await addTracksToPlaylist(newPlaylist.id, trackUris);
+                        
+                        playlistMap[newPlaylistName] = {
+                            url: newPlaylist.url,
+                            trackUris: trackUris
+                        };
+                    }
                 }
 
                 updateStatus("✅ All playlists created and tracks added successfully!", 'text-spotifyGreen', 100, "Check your Spotify account under Playlists!");
